@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Korean Weather Monitor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #eef2f7; min-height: 100vh; padding: 2rem 1rem; }
+    header { text-align: center; margin-bottom: 2rem; }
+    header h1 { font-size: 2rem; color: #1a202c; font-weight: 700; }
+    header p { color: #718096; margin-top: 0.4rem; font-size: 0.95rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      transition: transform 0.15s ease;
+    }
+    .card:hover { transform: translateY(-3px); }
+    .city-name { font-size: 1.15rem; font-weight: 700; color: #2d3748; margin-bottom: 0.3rem; }
+    .condition { font-size: 0.85rem; color: #718096; margin-bottom: 1rem; }
+    .temp-main { font-size: 2.8rem; font-weight: 800; color: #3182ce; line-height: 1; }
+    .temp-range { font-size: 0.85rem; color: #a0aec0; margin-top: 0.3rem; margin-bottom: 1rem; }
+    .details { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.82rem; }
+    .detail-item label { color: #a0aec0; display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .detail-item span { color: #4a5568; font-weight: 600; }
+    .error-card { background: #fff5f5; border: 1px solid #fed7d7; }
+    .error-card .city-name { color: #c53030; }
+    .api-section {
+      max-width: 1100px; margin: 2.5rem auto 0;
+      background: white; border-radius: 12px; padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .api-section h2 { font-size: 1rem; font-weight: 700; color: #2d3748; margin-bottom: 0.8rem; }
+    .endpoint { background: #f7fafc; border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 0.5rem; font-family: monospace; font-size: 0.85rem; color: #4a5568; }
+    .endpoint a { color: #3182ce; text-decoration: none; }
+    .endpoint a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Korea Weather Monitor</h1>
+    <p>Live weather for major Korean cities — powered by <a href="https://open-meteo.com" style="color:#3182ce">Open-Meteo</a></p>
+  </header>
+
+  <div class="grid">
+    {% for city in cities %}
+      {% if city.get('error') %}
+        <div class="card error-card">
+          <div class="city-name">{{ city.city }}</div>
+          <div class="condition">Data unavailable</div>
+        </div>
+      {% else %}
+        <div class="card">
+          <div class="city-name">{{ city.city }}</div>
+          <div class="condition">{{ city.condition }}</div>
+          <div class="temp-main">{{ city.temperature }}°C</div>
+          <div class="temp-range">↑{{ city.temp_max }}° / ↓{{ city.temp_min }}°</div>
+          <div class="details">
+            <div class="detail-item">
+              <label>Feels like</label>
+              <span>{{ city.feels_like }}°C</span>
+            </div>
+            <div class="detail-item">
+              <label>Humidity</label>
+              <span>{{ city.humidity }}%</span>
+            </div>
+            <div class="detail-item">
+              <label>Wind</label>
+              <span>{{ city.wind_speed }} km/h</span>
+            </div>
+            <div class="detail-item">
+              <label>Precip.</label>
+              <span>{{ city.precipitation }} mm</span>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="api-section">
+    <h2>REST API Endpoints</h2>
+    <div class="endpoint">GET <a href="/api/weather">/api/weather</a> — all cities (JSON)</div>
+    <div class="endpoint">GET <a href="/api/weather/Seoul">/api/weather/&lt;city&gt;</a> — single city (e.g., Seoul, Busan, Jeju)</div>
+  </div>
+</body>
+</html>
