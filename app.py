@@ -82,7 +82,11 @@ def api_all():
 @app.route("/api/weather/<city_name>")
 def api_city(city_name):
     """GET /api/weather/<city_name> — returns weather for one city"""
-    return jsonify(get_weather(city_name.capitalize()))
+    name = city_name.capitalize()
+    if name not in CITIES:
+        return jsonify({"error": f"City '{city_name}' not found", "cities": list(CITIES)}), 404
+    data = get_weather(name)
+    return jsonify(data), 502 if "error" in data else 200
 
 
 if __name__ == "__main__":

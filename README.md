@@ -23,6 +23,7 @@ A Flask web application that displays real-time weather for 8 major Korean citie
 ├── app.py                # Flask app + API routes
 ├── templates/
 │   └── index.html        # Weather dashboard UI
+├── test_app.py           # API status-code tests (pytest)
 ├── requirements.txt
 └── README.md
 ```
@@ -34,7 +35,14 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Then open [http://localhost:5000](http://localhost:5000)
+Then open [http://localhost:5000](http://localhost:5000). On macOS, port 5000 may be taken by AirPlay Receiver; turn it off in System Settings or change the port in `app.py`.
+
+Run the tests (offline, no network calls):
+
+```bash
+pip install pytest
+pytest -q
+```
 
 ## API Reference
 
@@ -42,7 +50,7 @@ Then open [http://localhost:5000](http://localhost:5000)
 |---|---|
 | `GET /` | HTML weather dashboard |
 | `GET /api/weather` | All cities as JSON array |
-| `GET /api/weather/<city>` | Single city (e.g., `Seoul`, `Busan`, `Jeju`) |
+| `GET /api/weather/<city>` | Single city (e.g., `Seoul`, `Busan`, `Jeju`). Unknown city → `404`; upstream API failure → `502` |
 
 **Example response** (`GET /api/weather/Seoul`):
 ```json
@@ -58,6 +66,11 @@ Then open [http://localhost:5000](http://localhost:5000)
   "temp_min": -1.4
 }
 ```
+
+## Limitations
+
+- Each page load makes 8 sequential Open-Meteo calls with no caching, so page loads are slow and would hit rate limits under real traffic.
+- Uses Flask's development server; not set up for production deployment.
 
 ## Relevance to Data Science / SCM Roles
 
