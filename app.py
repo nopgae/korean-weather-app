@@ -124,7 +124,7 @@ def index():
     save_readings(weather_data)
     with engine.connect() as conn:
         total = conn.execute(select(func.count()).select_from(readings)).scalar()
-    return render_template("index.html", cities=weather_data, total=total)
+    return render_template("index.html", cities=weather_data, total=total, coords=CITIES)
 
 
 @app.route("/history/<city_name>")
