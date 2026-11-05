@@ -26,7 +26,7 @@ def test_dashboard_saves_reading_and_history_returns_it(tmp_path, monkeypatch) -
     engine = create_engine(f"sqlite:///{tmp_path}/t.db")
     appmod.metadata.create_all(engine)
     monkeypatch.setattr(appmod, "engine", engine)
-    with patch("app.get_weather", side_effect=lambda c: FAKE | {"city": c}):
+    with patch("app.get_weather_many", side_effect=lambda cs: [FAKE | {"city": c} for c in cs]):
         client = app.test_client()
         assert client.get("/").status_code == 200
         client.get("/")  # second load within 10 min must not duplicate rows
@@ -34,3 +34,19 @@ def test_dashboard_saves_reading_and_history_returns_it(tmp_path, monkeypatch) -
     assert len(h) == 1 and h[0]["temperature"] == 12.5
     assert client.get("/history/Seoul").status_code == 200
     assert client.get("/api/health").get_json()["db"] == "sqlite"
+
+
+def test_get_weather_many_maps_list_response_in_order() -> None:
+    import app as appmod
+    loc = lambda t: {"current": {"temperature_2m": t, "apparent_temperature": t, "relative_humidity_2m": 50,
+                                 "wind_speed_10m": 1, "precipitation": 0, "weather_code": 0},
+                     "daily": {"temperature_2m_max": [t + 1], "temperature_2m_min": [t - 1]}}
+    class R:
+        def __init__(self, body): self.body = body
+        def raise_for_status(self): pass
+        def json(self): return self.body
+    with patch("app.requests.get", return_value=R([loc(10), loc(20)])):
+        out = appmod.get_weather_many(["Seoul", "Jeju"])
+    assert [(o["city"], o["temperature"]) for o in out] == [("Seoul", 10), ("Jeju", 20)]
+    with patch("app.requests.get", return_value=R(loc(5))):  # single city -> object, not list
+        assert appmod.get_weather("Busan")["temperature"] == 5

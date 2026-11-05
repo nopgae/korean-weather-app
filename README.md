@@ -86,7 +86,7 @@ pytest -q
 
 ## Limitations
 
-- Each page load makes 8 sequential Open-Meteo calls with no caching, so page loads are slow and would hit rate limits under real traffic.
+- No caching: each page load makes one Open-Meteo request for all 8 cities.
 - Readings are only recorded when someone opens the dashboard (no background scheduler).
 
 ## Relevance to Data Science / SCM Roles

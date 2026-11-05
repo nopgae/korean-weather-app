@@ -57,38 +57,43 @@ WMO_CODES = {
 }
 
 
-def get_weather(city_name):
-    city = CITIES.get(city_name)
-    if not city:
-        return {"error": f"City '{city_name}' not found"}
-
+def get_weather_many(city_names):
+    """Fetch several cities in ONE Open-Meteo request (comma-separated coordinates)."""
+    known = [c for c in city_names if c in CITIES]
     params = {
-        "latitude": city["lat"],
-        "longitude": city["lon"],
+        "latitude": ",".join(str(CITIES[c]["lat"]) for c in known),
+        "longitude": ",".join(str(CITIES[c]["lon"]) for c in known),
         "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,apparent_temperature,precipitation",
         "daily": "temperature_2m_max,temperature_2m_min",
         "timezone": "Asia/Seoul",
         "forecast_days": 1,
     }
     try:
-        r = requests.get("https://api.open-meteo.com/v1/forecast", params=params, timeout=10)
+        r = requests.get("https://api.open-meteo.com/v1/forecast", params=params, timeout=20)
         r.raise_for_status()
         data = r.json()
-        current = data["current"]
-        daily = data["daily"]
-        return {
-            "city": city_name,
-            "temperature": current["temperature_2m"],
-            "feels_like": current["apparent_temperature"],
-            "humidity": current["relative_humidity_2m"],
-            "wind_speed": current["wind_speed_10m"],
-            "precipitation": current["precipitation"],
-            "condition": WMO_CODES.get(current["weather_code"], "Unknown"),
-            "temp_max": daily["temperature_2m_max"][0],
-            "temp_min": daily["temperature_2m_min"][0],
-        }
-    except requests.RequestException as e:
-        return {"city": city_name, "error": str(e)}
+        data = data if isinstance(data, list) else [data]  # single location returns an object
+        by_city = {}
+        for name, d in zip(known, data):
+            current, daily = d["current"], d["daily"]
+            by_city[name] = {
+                "city": name,
+                "temperature": current["temperature_2m"],
+                "feels_like": current["apparent_temperature"],
+                "humidity": current["relative_humidity_2m"],
+                "wind_speed": current["wind_speed_10m"],
+                "precipitation": current["precipitation"],
+                "condition": WMO_CODES.get(current["weather_code"], "Unknown"),
+                "temp_max": daily["temperature_2m_max"][0],
+                "temp_min": daily["temperature_2m_min"][0],
+            }
+    except (requests.RequestException, KeyError, ValueError) as e:
+        by_city = {name: {"city": name, "error": str(e)} for name in known}
+    return [by_city.get(c, {"error": f"City '{c}' not found"}) for c in city_names]
+
+
+def get_weather(city_name):
+    return get_weather_many([city_name])[0]
 
 
 def save_readings(weather_data):
@@ -120,7 +125,7 @@ def get_history(city_name, limit=200):
 
 @app.route("/")
 def index():
-    weather_data = [get_weather(city) for city in CITIES]
+    weather_data = get_weather_many(list(CITIES))
     save_readings(weather_data)
     with engine.connect() as conn:
         total = conn.execute(select(func.count()).select_from(readings)).scalar()
@@ -154,7 +159,7 @@ def health():
 @app.route("/api/weather")
 def api_all():
     """GET /api/weather — returns weather for all cities as JSON"""
-    return jsonify([get_weather(city) for city in CITIES])
+    return jsonify(get_weather_many(list(CITIES)))
 
 
 @app.route("/api/weather/<city_name>")
