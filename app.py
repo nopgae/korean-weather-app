@@ -3,10 +3,34 @@ Korean City Weather Monitor
 Flask web app + REST API using Open-Meteo (no API key required)
 """
 
+import os
+from datetime import datetime, timedelta, timezone
+
 from flask import Flask, render_template, jsonify
 import requests
+from sqlalchemy import (Column, DateTime, Float, Integer, MetaData, String, Table,
+                        create_engine, func, insert, select)
 
 app = Flask(__name__)
+
+# Azure PostgreSQL in the cloud (DATABASE_URL), local SQLite file otherwise
+db_url = os.environ.get("DATABASE_URL", "sqlite:///weather.db")
+db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)  # use psycopg 3 driver
+engine = create_engine(db_url, pool_pre_ping=True)
+metadata = MetaData()
+readings = Table(
+    "readings", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("city", String(32), index=True, nullable=False),
+    Column("temperature", Float),
+    Column("humidity", Float),
+    Column("wind_speed", Float),
+    Column("condition", String(64)),
+    Column("recorded_at", DateTime(timezone=True), nullable=False),
+)
+metadata.create_all(engine)
+
+SAVE_INTERVAL = timedelta(minutes=10)  # avoid one row per page refresh
 
 # Major Korean cities with coordinates
 CITIES = {
@@ -67,10 +91,64 @@ def get_weather(city_name):
         return {"city": city_name, "error": str(e)}
 
 
+def save_readings(weather_data):
+    """Store one reading per city, at most once per SAVE_INTERVAL."""
+    now = datetime.now(timezone.utc)
+    with engine.begin() as conn:
+        last = conn.execute(select(func.max(readings.c.recorded_at))).scalar()
+        if last is not None and last.tzinfo is None:  # SQLite drops tzinfo
+            last = last.replace(tzinfo=timezone.utc)
+        if last and now - last < SAVE_INTERVAL:
+            return
+        rows = [{k: w[k] for k in ("city", "temperature", "humidity", "wind_speed", "condition")}
+                | {"recorded_at": now} for w in weather_data if "error" not in w]
+        if rows:
+            conn.execute(insert(readings), rows)
+
+
+def get_history(city_name, limit=200):
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(readings.c.temperature, readings.c.humidity, readings.c.recorded_at)
+            .where(readings.c.city == city_name)
+            .order_by(readings.c.recorded_at.desc()).limit(limit)
+        ).all()
+    return [{"temperature": r.temperature, "humidity": r.humidity,
+             "recorded_at": (r.recorded_at if r.recorded_at.tzinfo else r.recorded_at.replace(tzinfo=timezone.utc)).isoformat()}
+            for r in reversed(rows)]
+
+
 @app.route("/")
 def index():
     weather_data = [get_weather(city) for city in CITIES]
-    return render_template("index.html", cities=weather_data)
+    save_readings(weather_data)
+    with engine.connect() as conn:
+        total = conn.execute(select(func.count()).select_from(readings)).scalar()
+    return render_template("index.html", cities=weather_data, total=total)
+
+
+@app.route("/history/<city_name>")
+def history_page(city_name):
+    name = city_name.capitalize()
+    if name not in CITIES:
+        return "City not found", 404
+    return render_template("history.html", city=name, history=get_history(name))
+
+
+@app.route("/api/history/<city_name>")
+def api_history(city_name):
+    """GET /api/history/<city_name> — stored readings for one city (oldest first)"""
+    name = city_name.capitalize()
+    if name not in CITIES:
+        return jsonify({"error": f"City '{city_name}' not found", "cities": list(CITIES)}), 404
+    return jsonify(get_history(name))
+
+
+@app.route("/api/health")
+def health():
+    with engine.connect() as conn:
+        conn.execute(select(1))
+    return jsonify(status="ok", db=engine.dialect.name)
 
 
 @app.route("/api/weather")
@@ -90,4 +168,4 @@ def api_city(city_name):
 
 
 if __name__ == "__main__":
-    app.run(debug=False, port=5000)
+    app.run(debug=False, host="0.0.0.0", port=8000)

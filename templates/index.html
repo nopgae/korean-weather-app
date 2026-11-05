@@ -49,6 +49,7 @@
   <header>
     <h1>Korea Weather Monitor</h1>
     <p>Live weather for major Korean cities — powered by <a href="https://open-meteo.com" style="color:#3182ce">Open-Meteo</a></p>
+    <p>{{ total }} readings stored · click a city for its history</p>
   </header>
 
   <div class="grid">
@@ -60,7 +61,7 @@
         </div>
       {% else %}
         <div class="card">
-          <div class="city-name">{{ city.city }}</div>
+          <div class="city-name"><a href="/history/{{ city.city }}" style="color:inherit">{{ city.city }}</a></div>
           <div class="condition">{{ city.condition }}</div>
           <div class="temp-main">{{ city.temperature }}°C</div>
           <div class="temp-range">↑{{ city.temp_max }}° / ↓{{ city.temp_min }}°</div>
@@ -91,6 +92,8 @@
     <h2>REST API Endpoints</h2>
     <div class="endpoint">GET <a href="/api/weather">/api/weather</a> — all cities (JSON)</div>
     <div class="endpoint">GET <a href="/api/weather/Seoul">/api/weather/&lt;city&gt;</a> — single city (e.g., Seoul, Busan, Jeju)</div>
+    <div class="endpoint">GET <a href="/api/history/Seoul">/api/history/&lt;city&gt;</a> — stored readings from the database</div>
+    <div class="endpoint">GET <a href="/api/health">/api/health</a> — app + DB health check</div>
   </div>
 </body>
 </html>
